@@ -29,9 +29,16 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run plugins:setup
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run lint
+      # The three checks share nothing but the install; failures surface at
+      # the group's implicit wait, each with its own log. A parallel step
+      # carries only the group — no name/run of its own (workflow-syntax docs).
+      - parallel:
+          - name: Typecheck
+            run: npm run typecheck
+          - name: Tests
+            run: npm test
+          - name: Lint
+            run: npm run lint
 
   standalone:
     name: Standalone (${{ matrix.platform }})

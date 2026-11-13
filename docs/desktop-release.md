@@ -51,12 +51,16 @@ npx electron-builder --linux --x64 --publish never # Linux
 
 ## CI and release modes
 
-[CI](../.github/workflows/ci.yml) runs typecheck/tests/lint on Ubuntu, plus standalone/native checks on macOS, Windows, and Linux. Its `macos-15` job does not compile the release icon.
+[CI](../.github/workflows/ci.yml) runs typecheck/tests/lint on Ubuntu — the three checks share one `parallel` step group, so they overlap instead of queueing — plus standalone/native checks on macOS, Windows, and Linux. Its `macos-15` job does not compile the release icon.
+
+[Main build](../.github/workflows/main-build.yml) packages unsigned Windows/Linux installers on every code push to `main` (markdown/docs-only pushes are skipped; manual dispatch always works) and stores them as seven-day workflow artifacts named `learnharness-<platform>`. No macOS, no signing secrets, no releases or drafts; a newer main commit cancels the superseded run.
 
 [Desktop release](../.github/workflows/release.yml) has two modes:
 
 - **Manual dispatch:** unsigned rehearsal installers retained as workflow artifacts for seven days. No signing secrets, release creation, or publication. macOS notarization is skipped; these are not production installers.
 - **Matching `v<package.json version>` tag:** gates, one shared draft-preparation job, three OS packaging/upload jobs, then read-only draft verification. Published/ambiguous existing releases fail preparation; same-ref runs serialize rather than cancelling uploads. macOS must sign/notarize. **The workflow never publishes the draft.**
+
+Packaging jobs in both workflows restore cached Electron/electron-builder downloads (per-OS cache directories, keyed on `package-lock.json`) before installing dependencies, so Electron zips and NSIS/AppImage tooling are downloaded once per lockfile change rather than per run.
 
 ### Draft verification
 
