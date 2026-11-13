@@ -29,16 +29,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run plugins:setup
-      # The three checks share nothing but the install; failures surface at
+      # Typecheck and lint share nothing but the install; failures surface at
       # the group's implicit wait, each with its own log. A parallel step
       # carries only the group — no name/run of its own (workflow-syntax docs).
+      # Tests stay sequential AFTER the group: the suite holds timing-bound
+      # assertions (e.g. atomic-write's sub-50ms failure paths) that flake
+      # under the CPU contention of a concurrent heavy step.
       - parallel:
           - name: Typecheck
             run: npm run typecheck
-          - name: Tests
-            run: npm test
           - name: Lint
             run: npm run lint
+      - name: Tests
+        run: npm test
 
   standalone:
     name: Standalone (${{ matrix.platform }})
@@ -46,9 +49,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Standard macos-15 runners are Apple Silicon (not macos-15-intel).
-          - os: macos-15
-            platform: mac-arm64
           - os: windows-2025
             platform: windows-x64
           - os: ubuntu-24.04
