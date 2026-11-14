@@ -15,18 +15,11 @@
  *   win (nsis x64; artifactName "${productName}-${version}-${arch}-setup.${ext}"):
  *     exe    LearnHarness-<v>-x64-setup.exe   + .blockmap (createBlockmap)
  *     feed   latest.yml — a single file entry, the exe.
- *   linux (AppImage + deb, x64; artifactName "${productName}-${version}-${arch}.${ext}"
- *            is user-forced at the linux level, so it overrides BOTH targets'
- *            default name formats, and ${arch} expands per target ext:
- *            x64→x86_64 for AppImage, x64→amd64 for deb):
- *     image  LearnHarness-<v>-x86_64.AppImage (no blockmap in 26.15.3)
- *     deb    LearnHarness-<v>-amd64.deb       (no blockmap)
- *     feed   latest-linux.yml — the AppImage and deb entries merged by
- *            writeUpdateInfoFiles (order not deterministic; checked as a set).
  *
- * macOS is not packaged by CI (this fork builds Windows/Linux only); the
- * mac section of electron-builder.yml remains for local desktop:dist runs
- * and is not part of the verified inventory.
+ * macOS and Linux are not packaged by CI (this fork builds Windows in CI;
+ * Linux/macOS are built locally per docs/desktop-release.md). The mac and
+ * linux sections of electron-builder.yml remain for those local builds and
+ * are not part of the verified inventory.
  *
  * GitHub asset names equal these file names (all are already "safe" GitHub
  * names, so electron-publish uploads under the plain name) and every yml
@@ -83,11 +76,10 @@ export type DraftSelection =
 	| { ok: true; release: ReleaseRecord; warnings: string[] }
 	| Failures;
 
-/** The full expected asset inventory for one version (6 files). */
+/** The full expected asset inventory for one version (3 files). */
 export type ExpectedAssets = {
 	version: string;
 	win: { exe: string; feed: string };
-	linux: { appImage: string; deb: string; feed: string };
 	/** Every asset name the draft must hold, and no others. */
 	files: string[];
 };
@@ -117,19 +109,13 @@ export function expectedAssets(version: string): ExpectedAssets {
 		exe: `${PRODUCT_NAME}-${version}-x64-setup.exe`,
 		feed: "latest.yml",
 	};
-	const linux = {
-		appImage: `${PRODUCT_NAME}-${version}-x86_64.AppImage`,
-		deb: `${PRODUCT_NAME}-${version}-amd64.deb`,
-		feed: "latest-linux.yml",
-	};
 	// Sidecar differential-update blockmaps: emitted for the NSIS exe
-	// (createBlockmap); AppImage/deb have none in app-builder-lib 26.15.3.
+	// (createBlockmap).
 	const blockmaps = [win.exe].map((name) => `${name}.blockmap`);
 	return {
 		version,
 		win,
-		linux,
-		files: [win.exe, linux.appImage, linux.deb, ...blockmaps, win.feed, linux.feed],
+		files: [win.exe, ...blockmaps, win.feed],
 	};
 }
 
@@ -265,15 +251,6 @@ export function verifyConfigAssumptions(config: unknown, pkg: unknown): { ok: tr
 			bad(`win.target changed (${JSON.stringify(config.win.target)}) — expected names no longer hold`);
 		}
 	}
-	if (!isPlainObject(config.linux)) bad("linux section missing");
-	else {
-		if (config.linux.artifactName !== "${productName}-${version}-${arch}.${ext}") {
-			bad(`linux.artifactName changed (${JSON.stringify(config.linux.artifactName)}) — expected names no longer hold`);
-		}
-		if (!sameTargets(config.linux.target, [{ target: "AppImage", arch: ["x64"] }, { target: "deb", arch: ["x64"] }])) {
-			bad(`linux.target changed (${JSON.stringify(config.linux.target)}) — expected names no longer hold`);
-		}
-	}
 	const publish = Array.isArray(config.publish) ? config.publish[0] : undefined;
 	if (!isPlainObject(publish) || publish.provider !== "github" || publish.releaseType !== "draft") {
 		bad(`publish[0] must be the github provider with releaseType "draft" (${JSON.stringify(config.publish)}) — uploads would not land in the draft`);
@@ -322,7 +299,6 @@ type FeedExpectation = {
 export function feedExpectations(expected: ExpectedAssets): FeedExpectation[] {
 	return [
 		{ file: expected.win.feed, urls: [expected.win.exe] },
-		{ file: expected.linux.feed, urls: [expected.linux.appImage, expected.linux.deb] },
 	];
 }
 
@@ -566,7 +542,7 @@ function main(argv: string[]): number {
 	const assets = verifyAssets(selection.release, expected);
 	if (!assets.ok) errors.push(...assets.errors);
 	const files: Record<string, string> = {};
-	for (const name of [expected.win.feed, expected.linux.feed]) {
+	for (const name of [expected.win.feed]) {
 		try {
 			files[name] = fs.readFileSync(path.join(metadataDir, name), "utf8");
 		} catch {
@@ -578,7 +554,7 @@ function main(argv: string[]): number {
 	if (errors.length > 0) return fail(errors);
 	const present = expected.files.filter((name) => selection.release.assets.some((asset) => asset.name === name));
 	console.log(`assets: ${present.length}/${expected.files.length} expected files present, non-zero size, and "uploaded"`);
-	console.log(`feeds: ${expected.win.feed}, ${expected.linux.feed} parse, carry version ${start.version}, and reference only uploaded assets by exact name`);
+	console.log(`feeds: ${expected.win.feed} parses, carries version ${start.version}, and references only uploaded assets by exact name`);
 	console.log(`OK: draft for ${start.tag} is complete and consistent — ready for the owner to review and publish.`);
 	return 0;
 }

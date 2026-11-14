@@ -31,9 +31,6 @@ jobs:
           - os: windows-2025
             platform: windows-x64
             builder_args: --win --x64
-          - os: ubuntu-24.04
-            platform: linux-x64
-            builder_args: --linux --x64
     runs-on: ${{ matrix.os }}
     # Unsigned, artifact-only; no notarization queue.
     timeout-minutes: 45
@@ -55,15 +52,6 @@ jobs:
             ~/AppData/Local/electron-builder/Cache
           key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
           restore-keys: ${{ runner.os }}-electron-
-      - name: Cache Electron and electron-builder downloads (Linux)
-        if: runner.os == 'Linux'
-        uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cache/electron
-            ~/.cache/electron-builder
-          key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
-          restore-keys: ${{ runner.os }}-electron-
       - run: npm ci
       - run: npm run plugins:setup
       - name: Native renderer tests on this OS
@@ -81,28 +69,12 @@ jobs:
       - run: npx electron-builder ${{ matrix.builder_args }} --publish never
       - name: Initialize packaged providers offline (host and packaged Electron Node)
         run: |
-          case "$RUNNER_OS" in
-            Windows)
-              payload="dist/win-unpacked/resources/server/standalone"
-              runtime="dist/win-unpacked/LearnHarness.exe"
-              ;;
-            Linux)
-              payload="dist/linux-unpacked/resources/server/standalone"
-              runtime="dist/linux-unpacked/learnharness"
-              ;;
-          esac
+          payload="dist/win-unpacked/resources/server/standalone"
+          runtime="dist/win-unpacked/LearnHarness.exe"
           node scripts/smoke-provider-runtime.mjs --standalone "$payload"
           node scripts/smoke-provider-runtime.mjs --standalone "$payload" --runtime "$runtime"
       - name: Exercise packaged demo runtime (own Electron, no system Chrome)
-        run: |
-          case "$RUNNER_OS" in
-            Windows)
-              node scripts/smoke-demo-runtime.mjs --standalone dist/win-unpacked/resources/server/standalone --runtime dist/win-unpacked/LearnHarness.exe --browser
-              ;;
-            Linux)
-              xvfb-run -a node scripts/smoke-demo-runtime.mjs --standalone dist/linux-unpacked/resources/server/standalone --runtime dist/linux-unpacked/learnharness --browser
-              ;;
-          esac
+        run: node scripts/smoke-demo-runtime.mjs --standalone dist/win-unpacked/resources/server/standalone --runtime dist/win-unpacked/LearnHarness.exe --browser
       - name: Save installers and update metadata
         uses: actions/upload-artifact@v7
         with:
@@ -111,7 +83,5 @@ jobs:
           if-no-files-found: error
           path: |
             dist/*.exe
-            dist/*.AppImage
-            dist/*.deb
             dist/*.blockmap
             dist/latest*.yml
