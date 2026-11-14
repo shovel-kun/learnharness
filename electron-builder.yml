@@ -181,14 +181,16 @@ linux:
   # Both targets update via electron-updater 6.8.9. AppImage replaces its
   # own file; deb uses dpkg/apt and may request administrator permission.
 publish:
-  # Update feed = GitHub Releases (decided 2026-10-08): latest-mac.yml +
-  # zip/blockmap live on releases; electron-updater reads them anonymously.
-  # REQUIRES THE REPO TO BE PUBLIC before 0.3.0 ships — anonymous downloads
-  # from a private repo are impossible, and a token baked into the app
-  # would be a leak. desktop:dist passes no --publish flag, so builds never
-  # upload; publishing happens at release time (GH_TOKEN + --publish).
+  # Update feed = GitHub Releases (decided 2026-10-08): latest*.yml +
+  # blockmaps live on releases; electron-updater reads them anonymously.
+  # REQUIRES A PUBLIC REPO — anonymous downloads from a private repo are
+  # impossible, and a token baked into the app would be a leak. Points at
+  # this fork's origin (shovel-kun/learnharness): packaged apps check the
+  # fork's published releases, never upstream's. desktop:dist/desktop:arch
+  # pass no --publish flag, so local builds never upload; publishing
+  # happens at release time (GH_TOKEN + --publish).
   - provider: github
-    owner: amosblomqvist
+    owner: shovel-kun
     repo: learnharness
-    # All three CI jobs contribute assets; only the owner publishes it.
+    # The Windows CI job contributes assets; only the owner publishes it.
     releaseType: draft
